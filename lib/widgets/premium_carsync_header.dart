@@ -2,15 +2,17 @@ import 'package:flutter/material.dart';
 import 'carsync_logo_mark.dart';
 
 class PremiumCarSyncHeader extends StatelessWidget {
-  final String title;
+  final String greeting;
   final String subtitle;
+  final String appName;
   final Widget? trailing;
   final bool showLogo;
 
   const PremiumCarSyncHeader({
     super.key,
-    required this.title,
-    required this.subtitle,
+    required this.greeting,
+    this.subtitle = '',
+    this.appName = 'CarSync',
     this.trailing,
     this.showLogo = true,
   });
@@ -24,49 +26,66 @@ class PremiumCarSyncHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  if (showLogo) ...[
-                    const CarSyncLogoMark(size: 28),
-                    const SizedBox(width: 8),
-                  ],
-                  Flexible(
-                    child: Text(
-                      title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF0F1115),
-                        letterSpacing: -0.8,
-                        height: 1.05,
+              if (showLogo || appName.trim().isNotEmpty)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    if (showLogo) ...[
+                      const CarSyncLogoMark(size: 18),
+                      if (appName.trim().isNotEmpty) const SizedBox(width: 8),
+                    ],
+                    if (appName.trim().isNotEmpty)
+                      Flexible(
+                        child: Text(
+                          appName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            color: Color(0xFF6B7280),
+                            letterSpacing: 0.01,
+                            height: 1.2,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-                const SizedBox(height: 9),
+                  ],
+                ),
+              const SizedBox(height: 10),
               Text(
-                subtitle,
-                maxLines: 2,
+                greeting,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    fontSize: 13,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF6B7280),
-                  letterSpacing: 0.02,
-                    height: 1.5,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1C1C1E),
+                  letterSpacing: -0.4,
+                  height: 1.08,
                 ),
               ),
+              if (subtitle.trim().isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  subtitle,
+                  maxLines: 2,
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF8A8F98),
+                    letterSpacing: 0.01,
+                    height: 1.4,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
         if (trailing != null) ...[
           const SizedBox(width: 12),
           Padding(
-            padding: const EdgeInsets.only(top: 6),
+            padding: const EdgeInsets.only(top: 14),
             child: trailing,
           ),
         ],

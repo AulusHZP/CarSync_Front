@@ -10,6 +10,7 @@ import '../../models/service.dart';
 import '../../services/expense_service.dart';
 import '../../services/home_refresh_notifier.dart';
 import '../../services/service_api.dart';
+import '../../services/user_profile_service.dart';
 import '../../services/vehicle_profile_service.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_feedback.dart';
@@ -37,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _hasCurrentMonthKm = false;
   bool _hasVehicleProfile = false;
   String _activeVehicleModel = '';
+  String _userName = '';
   List<VehicleProfileData> _availableVehicles = const <VehicleProfileData>[];
 
   int _scheduledServices = 0;
@@ -80,6 +82,7 @@ class _HomeScreenState extends State<HomeScreen> {
     int? currentTotalKm;
     bool? hasCurrentMonthKm;
     bool? hasVehicleProfile;
+    String? userName;
     String activeVehicleModel = '';
     List<VehicleProfileData> availableVehicles = const <VehicleProfileData>[];
 
@@ -151,6 +154,16 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     }
 
+    try {
+      final userProfile = await UserProfileService.getProfile();
+      final name = userProfile?.name.trim() ?? '';
+      if (name.isNotEmpty) {
+        userName = name;
+      }
+    } catch (_) {
+      // Keep fallback greeting when profile is unavailable.
+    }
+
     if (!mounted) return;
     setState(() {
       if (monthlyTotal != null) _monthlyTotal = monthlyTotal;
@@ -164,6 +177,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (hasCurrentMonthKm != null) _hasCurrentMonthKm = hasCurrentMonthKm;
       if (hasVehicleProfile != null) _hasVehicleProfile = hasVehicleProfile;
       _activeVehicleModel = activeVehicleModel;
+      if (userName != null) _userName = userName;
       _currentTotalKm = currentTotalKm;
       _availableVehicles = availableVehicles;
 
@@ -408,6 +422,16 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'SAUDE DO ${model.toUpperCase()}';
   }
 
+  String _headerGreeting() {
+    final trimmed = _userName.trim();
+    if (trimmed.isEmpty) {
+      return 'Olá, usuário';
+    }
+
+    final firstName = trimmed.split(RegExp(r'\s+')).first;
+    return 'Olá, $firstName';
+  }
+
   Color _carHealthColor(int health) {
     if (!_hasVehicleProfile || health >= 95) {
       return AppColors.green;
@@ -518,11 +542,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: PremiumCarSyncHeader(
-                        title: 'CarSync',
-                        subtitle:
-                            'Controle seu carro com\nsimplicidade e precisão.',
+                        appName: 'CarSync',
+                        greeting: _headerGreeting(),
                       ),
                     ),
                     if (_availableVehicles.length > 1) ...[

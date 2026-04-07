@@ -333,6 +333,79 @@ class VehicleProfileService {
     return true;
   }
 
+  static Future<bool> deleteProfileByPlate(String plate) async {
+    final scope = await _currentScope();
+    final normalizedPlate = _normalizePlate(plate);
+    if (normalizedPlate.isEmpty) {
+      return false;
+    }
+
+    final profiles = await listProfiles();
+    final target = profiles.where(
+      (profile) => _normalizePlate(profile.plate) == normalizedPlate,
+    );
+    if (target.isEmpty) {
+      return false;
+    }
+
+    try {
+      await VehicleApi.deleteVehicleByPlate(plate);
+    } catch (e) {
+      final message = e.toString().toLowerCase();
+      if (!message.contains('veículo não encontrado') &&
+          !message.contains('vehicle not found')) {
+        rethrow;
+      }
+    }
+
+    final updatedProfiles = profiles
+        .where((profile) => _normalizePlate(profile.plate) != normalizedPlate)
+        .toList();
+
+    _memoryProfilesByScope[scope] = List<VehicleProfileData>.from(updatedProfiles);
+
+    final memoryKey = _vehicleHistoryMemoryKey(scope, plate);
+    _memoryHistoryByVehicleKey.remove(memoryKey);
+    _memoryKmEntriesByVehicleKey.remove(memoryKey);
+    _memoryRemoteTotalKmByVehicleKey.remove(memoryKey);
+
+    final currentActive = _memoryActiveProfileByScope[scope] ?? '';
+    final shouldSwitchActive =
+        currentActive.isEmpty || currentActive == normalizedPlate;
+
+    String? nextActive;
+    if (updatedProfiles.isNotEmpty) {
+      nextActive = shouldSwitchActive
+          ? _normalizePlate(updatedProfiles.first.plate)
+          : currentActive;
+      _memoryActiveProfileByScope[scope] = nextActive;
+    } else {
+      _memoryActiveProfileByScope.remove(scope);
+    }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await _persistProfilesToPrefs(prefs, scope, updatedProfiles);
+
+      await prefs.remove(_monthlyKmKeyForVehicle(scope, plate));
+      await prefs.remove(_kmEntriesKeyForVehicle(scope, plate));
+
+      if (nextActive != null && nextActive.isNotEmpty) {
+        await prefs.setString(_activeProfileKeyForScope(scope), nextActive);
+      } else {
+        await prefs.remove(_activeProfileKeyForScope(scope));
+      }
+    } on MissingPluginException {
+      // Keep in-memory changes only when plugin registration is stale.
+    } on PlatformException {
+      // Keep in-memory changes only when plugin registration is stale.
+    } catch (_) {
+      // Best-effort persistence.
+    }
+
+    return true;
+  }
+
   static Future<void> saveProfile({
     required String model,
     required String year,

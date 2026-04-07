@@ -6,8 +6,6 @@ import '../../core/app_theme.dart';
 import '../../features/profile/add_car_screen.dart';
 import '../../features/profile/edit_profile_screen.dart';
 import '../../services/user_profile_service.dart';
-import '../../widgets/app_card.dart';
-import '../../widgets/add_car_button.dart';
 import '../../widgets/app_feedback.dart';
 import '../../widgets/dark_card.dart';
 import '../../services/auth_session.dart';
@@ -24,6 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _userName = 'Conta nova';
   String _userEmail = 'Nenhum email carregado';
   List<CarProfile> _cars = const <CarProfile>[];
+  bool _isDeletingCar = false;
 
   CarProfile _currentCar = const CarProfile(
     model: 'Sem carro cadastrado',
@@ -274,6 +273,101 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  Future<void> _deleteCurrentCar() async {
+    if (_isDeletingCar || _cars.isEmpty) {
+      return;
+    }
+
+    final plate = _currentCar.plate.trim();
+    if (plate.isEmpty || plate == '--') {
+      return;
+    }
+
+    final confirmed = await AppFeedback.confirmDestructive(
+      context,
+      title: 'Excluir veículo?',
+      message: 'O veículo $plate será removido permanentemente.',
+      highlightedText: plate,
+      confirmLabel: 'Excluir',
+      cancelLabel: 'Cancelar',
+    );
+
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    setState(() => _isDeletingCar = true);
+
+    try {
+      final deleted = await VehicleProfileService.deleteProfileByPlate(plate);
+
+      if (!deleted) {
+        if (!mounted) {
+          return;
+        }
+        AppFeedback.show(
+          context,
+          message: 'Veículo não encontrado para exclusão.',
+          tone: AppFeedbackTone.warning,
+        );
+        return;
+      }
+
+      await _loadSavedCar();
+      if (!mounted) {
+        return;
+      }
+
+      AppFeedback.show(
+        context,
+        message: 'Veículo excluído com sucesso.',
+        tone: AppFeedbackTone.success,
+      );
+    } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      AppFeedback.show(
+        context,
+        message: e.toString().replaceFirst('Exception: ', ''),
+        tone: AppFeedbackTone.error,
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isDeletingCar = false);
+      }
+    }
+  }
+
+  String _carMetaLine() {
+    final parts = <String>[];
+
+    final year = _currentCar.year.trim();
+    if (year.isNotEmpty && year != '--') {
+      parts.add(year);
+    }
+
+    final plate = _currentCar.plate.trim();
+    if (plate.isNotEmpty && plate != '--') {
+      parts.add(plate);
+    }
+
+    if (parts.isEmpty) {
+      return 'Sem dados do veículo';
+    }
+
+    return parts.join(' • ');
+  }
+
+  String _carKmHighlight() {
+    final km = _currentCar.totalKm.trim();
+    if (km.isEmpty || km == '--') {
+      return '—';
+    }
+    return km;
+  }
+
   String _initialsFromName(String name) {
     final parts =
         name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
@@ -303,13 +397,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final carDetails = [
-      {'label': 'Marca e modelo', 'value': _currentCar.model},
-      {'label': 'Ano', 'value': _currentCar.year},
-      {'label': 'KM total', 'value': _currentCar.totalKm},
-      {'label': 'Placa', 'value': _currentCar.plate},
-    ];
-
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: () async {
@@ -420,105 +507,159 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 padding: const EdgeInsets.only(left: 2, bottom: 12),
                 child: Text('MEU CARRO', style: AppTheme.sectionLabelStyle),
               ),
-              AppCard(
-                padding: EdgeInsets.zero,
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF9F9FB),
+                  borderRadius: BorderRadius.circular(16),
+                ),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 14),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: const Color(0x0A000000),
-                              borderRadius: BorderRadius.circular(9),
-                            ),
-                            child: const Icon(LucideIcons.car,
-                                size: 15, color: AppColors.primary),
-                          ),
-                          const SizedBox(width: 12),
-                          Text(
-                            _currentCar.model,
-                            style: const TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.primary,
-                                letterSpacing: -0.2),
-                          ),
-                        ],
+                    Container(
+                      width: 36,
+                      height: 2,
+                      decoration: BoxDecoration(
+                        color: const Color(0x331C1C1E),
+                        borderRadius: BorderRadius.circular(99),
                       ),
                     ),
-                    const Divider(height: 0.5, indent: 20, endIndent: 20),
-                    ...carDetails.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final d = entry.value;
-                      return Column(
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 20, vertical: 12),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(d['label']!,
-                                    style: const TextStyle(
-                                        fontSize: 13,
-                                        color: AppColors.secondary)),
-                                Text(d['value']!,
-                                    style: const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w500,
-                                        color: AppColors.primary,
-                                        letterSpacing: -0.1)),
-                              ],
-                            ),
-                          ),
-                          if (index < carDetails.length - 1)
-                            const Divider(
-                                height: 0.5,
-                                indent: 20,
-                                endIndent: 20,
-                                color: Color(0x0F3C3C43)),
-                        ],
-                      );
-                    }),
+                    const SizedBox(height: 10),
+                    Text(
+                      _currentCar.model,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 23,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                        letterSpacing: -0.5,
+                        height: 1.1,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      _carMetaLine(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: Color(0xFF6B7280),
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: -0.08,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'KM atual',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondary,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _carKmHighlight(),
+                      style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary,
+                        letterSpacing: -0.5,
+                        height: 1.05,
+                      ),
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 18),
-              AddCarButton(
-                onTap: _openAddCar,
-              ),
-              if (_cars.length > 1) ...[
-                const SizedBox(height: 10),
-                ElevatedButton(
-                  onPressed: _openSwitchVehicle,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.card,
-                    foregroundColor: AppColors.primary,
-                    minimumSize: const Size(double.infinity, 50),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    elevation: 0,
+              ElevatedButton(
+                onPressed: _openAddCar,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(LucideIcons.refreshCw, size: 15),
-                      SizedBox(width: 8),
-                      Text(
-                        'Trocar veículo',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: -0.1,
+                  elevation: 0,
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(LucideIcons.plus, size: 16),
+                    SizedBox(width: 8),
+                    Text(
+                      'Adicionar carro',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -0.1,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (_cars.length > 1 || _cars.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    if (_cars.length > 1)
+                      TextButton.icon(
+                        onPressed: _openSwitchVehicle,
+                        style: TextButton.styleFrom(
+                          foregroundColor: AppColors.primary,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 0,
+                            vertical: 8,
+                          ),
+                        ),
+                        icon: const Icon(LucideIcons.refreshCw, size: 15),
+                        label: const Text(
+                          'Trocar veículo',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: -0.1,
+                          ),
                         ),
                       ),
-                    ],
-                  ),
+                    if (_cars.length > 1 && _cars.isNotEmpty)
+                      const SizedBox(width: 8),
+                    if (_cars.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: _isDeletingCar ? null : _deleteCurrentCar,
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFFFF3B30),
+                          disabledForegroundColor: const Color(0x99FF3B30),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 0,
+                            vertical: 8,
+                          ),
+                        ),
+                        icon: _isDeletingCar
+                            ? const SizedBox(
+                                width: 15,
+                                height: 15,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Color(0xFFFF3B30),
+                                  ),
+                                ),
+                              )
+                            : const Icon(LucideIcons.trash2, size: 15),
+                        label: const Text(
+                          'Excluir carro',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            letterSpacing: -0.1,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ],
               const SizedBox(height: 24),

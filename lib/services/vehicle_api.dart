@@ -113,6 +113,32 @@ class VehicleApi {
     }
   }
 
+  static Future<void> deleteVehicleByPlate(String plate) async {
+    final normalizedPlate = plate.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+    if (normalizedPlate.isEmpty) {
+      throw Exception('Placa invalida para exclusao.');
+    }
+
+    try {
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/vehicles/$normalizedPlate'),
+            headers: await _headers(),
+          )
+          .timeout(timeout);
+
+      if (response.statusCode == 204) {
+        return;
+      }
+
+      throw Exception(_extractError(response));
+    } on TimeoutException {
+      throw Exception('Tempo de conexão esgotado ao excluir veículo.');
+    } on http.ClientException {
+      throw Exception('Erro de conexão ao excluir veículo.');
+    }
+  }
+
   static String _extractError(http.Response response) {
     try {
       final parsed = jsonDecode(response.body);
@@ -122,6 +148,9 @@ class VehicleApi {
           if (error.toLowerCase().contains('vehicle already registered')) {
             return 'Este veículo já está cadastrado.';
           }
+            if (error.toLowerCase().contains('vehicle not found')) {
+              return 'Veículo não encontrado.';
+            }
           return error;
         }
       }
@@ -131,6 +160,10 @@ class VehicleApi {
 
     if (response.statusCode == 409) {
       return 'Este veículo já está cadastrado.';
+    }
+
+    if (response.statusCode == 404) {
+      return 'Veículo não encontrado.';
     }
 
     return 'Erro no servidor (${response.statusCode}).';
