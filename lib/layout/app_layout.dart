@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/app_colors.dart';
+import '../services/alerts_refresh_notifier.dart';
+import '../services/home_refresh_notifier.dart';
 
 class AppLayout extends StatelessWidget {
   final StatefulNavigationShell navigationShell;
@@ -16,9 +18,9 @@ class AppLayout extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = screenWidth < 500;
-    
+
     return Scaffold(
-      backgroundColor: isMobile ? AppColors.bg : const Color(0xFFE5E5EA),
+      backgroundColor: AppColors.bg,
       body: SafeArea(
         bottom: false,
         child: Center(
@@ -72,15 +74,15 @@ class AppLayout extends StatelessWidget {
               filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
               child: Container(
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.80),
+                  color: AppColors.card,
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.25),
+                    color: AppColors.separator,
                     width: 1.0,
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.06),
+                      color: Colors.black.withValues(alpha: 0.06),
                       blurRadius: 20,
                       offset: const Offset(0, 4),
                     ),
@@ -111,7 +113,15 @@ class AppLayout extends StatelessWidget {
     final bool isActive = navigationShell.currentIndex == index;
 
     return GestureDetector(
-      onTap: () => navigationShell.goBranch(index),
+      onTap: () {
+        if (index == 0) {
+          HomeRefreshNotifier.bump();
+        }
+        if (index == 3) {
+          AlertsRefreshNotifier.bump();
+        }
+        navigationShell.goBranch(index);
+      },
       behavior: HitTestBehavior.opaque,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 300),
@@ -122,7 +132,7 @@ class AppLayout extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: isActive
-              ? AppColors.primary.withOpacity(0.1)
+              ? AppColors.primary.withValues(alpha: 0.1)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
         ),

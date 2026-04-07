@@ -3,12 +3,12 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_theme.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/app_feedback.dart';
 import '../../widgets/modern_dropdown.dart';
+import '../../services/expense_service.dart';
 
 class AddExpenseScreen extends StatefulWidget {
-  final Function(String category, int amount) onAddExpense;
-
-  const AddExpenseScreen({super.key, required this.onAddExpense});
+  const AddExpenseScreen({super.key});
 
   @override
   State<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -129,28 +129,35 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
-  void _addExpense() {
-    final amount = int.tryParse(amountController.text.trim());
+  void _addExpense() async {
+    final amount = double.tryParse(amountController.text.trim());
 
     if (selectedCategory == null ||
         selectedCategory!.isEmpty ||
         amount == null ||
         amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Preencha categoria e valor válido.'),
-        ),
+      AppFeedback.show(
+        context,
+        message: 'Preencha categoria e valor válido.',
+        tone: AppFeedbackTone.warning,
       );
       return;
     }
 
-    widget.onAddExpense(selectedCategory!, amount);
-    Navigator.of(context).pop();
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$selectedCategory adicionado com sucesso.'),
-      ),
-    );
+    try {
+      await ExpenseService.createExpense(
+        category: selectedCategory!,
+        amount: amount,
+      );
+
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      AppFeedback.show(
+        context,
+        message: 'Erro ao adicionar gasto: $e',
+        tone: AppFeedbackTone.error,
+      );
+    }
   }
 
   @override

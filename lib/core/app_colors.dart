@@ -9,8 +9,9 @@ class AppColors {
   static const Color green = Color(0xFF22C55E);
   static const Color amber = Color(0xFFF59E0B);
   static const Color red = Color(0xFFEF4444);
-  static const Color bg = Color(0xFFF2F2F7);
-  static const Color card = Color(0xFFFFFFFF);
+  static const Color bg = Color(0xFFFFFFFF);
+  static const Color card = Color(0xFFF5F5F7);
+  static const Color input = Color(0xFFF5F5F7);
   static const Color dark = Color(0xFF1F2937);
   static const Color darkGradientStart = Color(0xFF1F2937);
   static const Color darkGradientEnd = Color(0xFF111827);

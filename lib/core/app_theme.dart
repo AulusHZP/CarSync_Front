@@ -12,7 +12,6 @@ class AppTheme {
         primary: AppColors.primary,
         secondary: AppColors.secondary,
         surface: AppColors.card,
-        background: AppColors.bg,
         error: AppColors.red,
       ),
       textTheme: GoogleFonts.interTextTheme().copyWith(
@@ -62,6 +61,22 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(18),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: AppColors.input,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppColors.separator),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(
+            color: AppColors.primary.withValues(alpha: 0.34),
+            width: 1,
+          ),
         ),
       ),
       dividerTheme: const DividerThemeData(

@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'core/app_theme.dart';
 import 'navigation/app_router.dart';
+import 'services/auth_session.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await AuthSession.instance.init();
 
   // Set system UI overlay style
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
