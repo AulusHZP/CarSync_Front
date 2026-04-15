@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'api_config.dart';
 
 class AuthUser {
   final String name;
@@ -34,11 +35,14 @@ class AuthUser {
 }
 
 class LocalAuthService {
-  static const _baseUrl = 'http://localhost:3000/api/auth';
   static const _legacyUsersKey = 'carsync.auth.users';
   static const _currentUserKey = 'carsync.auth.current_user';
   static const _tokenKey = 'carsync.auth.token';
   static const _timeout = Duration(seconds: 12);
+  static const _maxRetries = 3;
+  
+  // Get the base URL dynamically from ApiConfig
+  static String get _baseUrl => '${ApiConfig.baseUrl}/auth';
 
   static Map<String, dynamic>? _memoryCurrentUser;
 
@@ -261,20 +265,76 @@ class LocalAuthService {
     String path, {
     required Map<String, dynamic> body,
   }) async {
+    return _postWithRetry(path, body: body);
+  }
+
+  static Future<http.Response> _postWithRetry(
+    String path, {
+    required Map<String, dynamic> body,
+    int retryCount = 0,
+  }) async {
     try {
-      return await http
+      final url = '$_baseUrl$path';
+      print('[LocalAuthService] Tentando conectar a: $url (tentativa ${retryCount + 1}/$_maxRetries)');
+      
+      final response = await http
           .post(
-            Uri.parse('$_baseUrl$path'),
+            Uri.parse(url),
             headers: const {'Content-Type': 'application/json'},
             body: jsonEncode(body),
           )
           .timeout(_timeout);
-    } on TimeoutException {
-      throw Exception('Nao foi possivel conectar ao servidor.');
-    } on http.ClientException {
-      throw Exception('Erro de conexao com o servidor.');
-    } on FormatException {
-      throw Exception('Resposta invalida do servidor.');
+
+      print('[LocalAuthService] Resposta recebida com status: ${response.statusCode}');
+      return response;
+    } on TimeoutException catch (e) {
+      print('[LocalAuthService] Timeout na tentativa ${retryCount + 1}/$_maxRetries: $e');
+      if (retryCount < _maxRetries - 1) {
+        // Aguardar antes de retentar (backoff exponencial)
+        final delayMs = 500 * (retryCount + 1);
+        print('[LocalAuthService] Aguardando ${delayMs}ms antes de retentar...');
+        await Future.delayed(Duration(milliseconds: delayMs));
+        return _postWithRetry(path, body: body, retryCount: retryCount + 1);
+      }
+      throw Exception(
+        'Não foi possível conectar ao servidor após $_maxRetries tentativas.\n'
+        'Servidor em: $_baseUrl\n'
+        'Erro: $e\n'
+        'Verifique:\n'
+        '1. Se o servidor está rodando em http://localhost:3000\n'
+        '2. Se sua conexão de internet está ativa\n'
+        '3. Se o firewall não está bloqueando a porta 3000'
+      );
+    } on http.ClientException catch (e) {
+      print('[LocalAuthService] Erro de cliente na tentativa ${retryCount + 1}/$_maxRetries: $e');
+      if (retryCount < _maxRetries - 1) {
+        final delayMs = 500 * (retryCount + 1);
+        print('[LocalAuthService] Aguardando ${delayMs}ms antes de retentar...');
+        await Future.delayed(Duration(milliseconds: delayMs));
+        return _postWithRetry(path, body: body, retryCount: retryCount + 1);
+      }
+      throw Exception(
+        'Erro de conexão com o servidor após $_maxRetries tentativas.\n'
+        'Servidor: $_baseUrl\n'
+        'Detalhes: $e\n'
+        'Verificar:\n'
+        '• Se o servidor backend está rodando\n'
+        '• Se você está conectado à internet ou rede correta\n'
+        '• Se a porta 3000 não está bloqueada'
+      );
+    } on FormatException catch (e) {
+      throw Exception('Resposta inválida do servidor: $e');
+    } catch (e) {
+      print('[LocalAuthService] Erro inesperado: $e');
+      if (retryCount < _maxRetries - 1) {
+        final delayMs = 500 * (retryCount + 1);
+        await Future.delayed(Duration(milliseconds: delayMs));
+        return _postWithRetry(path, body: body, retryCount: retryCount + 1);
+      }
+      throw Exception(
+        'Erro inesperado ao conectar ao servidor após $_maxRetries tentativas.\n'
+        'Detalhes: $e'
+      );
     }
   }
 

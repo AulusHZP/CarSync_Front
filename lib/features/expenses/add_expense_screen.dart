@@ -56,10 +56,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
   String? selectedCategory;
   final amountController = TextEditingController();
+  final litersController = TextEditingController();
+  final pricePerLiterController = TextEditingController();
+  String? selectedFuelType = 'Gasolina';
+
+  final fuelTypes = ['Gasolina', 'Diesel', 'Álcool'];
 
   @override
   void dispose() {
     amountController.dispose();
+    litersController.dispose();
+    pricePerLiterController.dispose();
     super.dispose();
   }
 
@@ -129,6 +136,147 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 
+  Widget _buildFuelTypeDropdown() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Tipo de Combustível',
+            style: const TextStyle(fontSize: 12, color: AppColors.secondary)),
+        const SizedBox(height: 6),
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: const Color(0x143C3C43),
+              width: 0.8,
+            ),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: DropdownButton<String>(
+            value: selectedFuelType,
+            isExpanded: true,
+            underline: const SizedBox(),
+            items: fuelTypes.map((String type) {
+              return DropdownMenuItem<String>(
+                value: type,
+                child: Text(type),
+              );
+            }).toList(),
+            onChanged: (String? newValue) {
+              setState(() {
+                selectedFuelType = newValue ?? 'Gasolina';
+              });
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLitersField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Litros',
+            style: const TextStyle(fontSize: 12, color: AppColors.secondary)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: litersController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: 'Ex: 45.5',
+            hintStyle: const TextStyle(
+              fontSize: 14,
+              color: AppColors.tertiary,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0x143C3C43),
+                width: 0.8,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0x143C3C43),
+                width: 0.8,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.accent,
+                width: 1,
+              ),
+            ),
+            filled: true,
+            fillColor: const Color(0x0A000000),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          ),
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.primary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPricePerLiterField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Preço por Litro (R\$)',
+            style: const TextStyle(fontSize: 12, color: AppColors.secondary)),
+        const SizedBox(height: 6),
+        TextField(
+          controller: pricePerLiterController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            hintText: 'Ex: 5.89',
+            hintStyle: const TextStyle(
+              fontSize: 14,
+              color: AppColors.tertiary,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0x143C3C43),
+                width: 0.8,
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Color(0x143C3C43),
+                width: 0.8,
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: AppColors.accent,
+                width: 1,
+              ),
+            ),
+            filled: true,
+            fillColor: const Color(0x0A000000),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
+          ),
+          style: const TextStyle(
+            fontSize: 14,
+            color: AppColors.primary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
   void _addExpense() async {
     final amount = double.tryParse(amountController.text.trim());
 
@@ -144,10 +292,35 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       return;
     }
 
+    // Additional validation for fuel category
+    double? liters;
+    double? pricePerLiter;
+
+    if (selectedCategory == 'Combustível') {
+      liters = double.tryParse(litersController.text.trim());
+      pricePerLiter = double.tryParse(pricePerLiterController.text.trim());
+
+      if (liters == null ||
+          liters <= 0 ||
+          pricePerLiter == null ||
+          pricePerLiter <= 0) {
+        AppFeedback.show(
+          context,
+          message:
+              'Preencha litros e preço do combustível com valores válidos.',
+          tone: AppFeedbackTone.warning,
+        );
+        return;
+      }
+    }
+
     try {
       await ExpenseService.createExpense(
         category: selectedCategory!,
         amount: amount,
+        fuelType: selectedFuelType,
+        liters: liters,
+        pricePerLiter: pricePerLiter,
       );
 
       Navigator.of(context).pop(true);
@@ -202,6 +375,14 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   _buildCategoryDropdown(),
                   const SizedBox(height: 12),
                   _buildAmountField(),
+                  if (selectedCategory == 'Combustível') ...[
+                    const SizedBox(height: 12),
+                    _buildFuelTypeDropdown(),
+                    const SizedBox(height: 12),
+                    _buildLitersField(),
+                    const SizedBox(height: 12),
+                    _buildPricePerLiterField(),
+                  ],
                 ],
               ),
             ),

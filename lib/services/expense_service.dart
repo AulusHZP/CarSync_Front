@@ -1,9 +1,10 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'local_auth_service.dart';
+import 'api_config.dart';
 
 class ExpenseService {
-  static const String baseUrl = 'http://localhost:3000/api';
+  static String get baseUrl => ApiConfig.baseUrl;
 
   static Future<Map<String, String>> _headers({bool json = false}) async {
     final email = await LocalAuthService.getCurrentUserEmail();
@@ -39,12 +40,15 @@ class ExpenseService {
   };
 
   // Get all expenses
-  static Future<List<dynamic>> getExpenses({int page = 1, int limit = 100}) async {
+  static Future<List<dynamic>> getExpenses(
+      {int page = 1, int limit = 100}) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/expenses?page=$page&limit=$limit'),
-        headers: await _headers(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/expenses?page=$page&limit=$limit'),
+            headers: await _headers(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -62,19 +66,33 @@ class ExpenseService {
     required String category,
     required double amount,
     String? description,
+    String? fuelType,
+    double? liters,
+    double? pricePerLiter,
   }) async {
     try {
       final apiCategory = categoryMap[category] ?? 'OTHER';
-      
-      final response = await http.post(
-        Uri.parse('$baseUrl/expenses'),
-        headers: await _headers(json: true),
-        body: jsonEncode({
-          'category': apiCategory,
-          'amount': amount,
-          'description': description ?? '',
-        }),
-      ).timeout(const Duration(seconds: 10));
+
+      final body = {
+        'category': apiCategory,
+        'amount': amount,
+        'description': description ?? '',
+      };
+
+      // Add fuel-specific fields if it's a fuel expense
+      if (apiCategory == 'FUEL') {
+        if (fuelType != null) body['fuelType'] = fuelType;
+        if (liters != null) body['liters'] = liters;
+        if (pricePerLiter != null) body['pricePerLiter'] = pricePerLiter;
+      }
+
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/expenses'),
+            headers: await _headers(json: true),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 201 || response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -90,10 +108,12 @@ class ExpenseService {
   // Get expense by ID
   static Future<Map<String, dynamic>> getExpenseById(String id) async {
     try {
-      final response = await http.get(
-        Uri.parse('$baseUrl/expenses/$id'),
-        headers: await _headers(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .get(
+            Uri.parse('$baseUrl/expenses/$id'),
+            headers: await _headers(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -125,11 +145,13 @@ class ExpenseService {
         body['description'] = description;
       }
 
-      final response = await http.put(
-        Uri.parse('$baseUrl/expenses/$id'),
-        headers: await _headers(json: true),
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .put(
+            Uri.parse('$baseUrl/expenses/$id'),
+            headers: await _headers(json: true),
+            body: jsonEncode(body),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final jsonData = jsonDecode(response.body);
@@ -145,10 +167,12 @@ class ExpenseService {
   // Delete an expense
   static Future<void> deleteExpense(String id) async {
     try {
-      final response = await http.delete(
-        Uri.parse('$baseUrl/expenses/$id'),
-        headers: await _headers(),
-      ).timeout(const Duration(seconds: 10));
+      final response = await http
+          .delete(
+            Uri.parse('$baseUrl/expenses/$id'),
+            headers: await _headers(),
+          )
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200 && response.statusCode != 204) {
         throw Exception('Failed to delete expense: ${response.statusCode}');

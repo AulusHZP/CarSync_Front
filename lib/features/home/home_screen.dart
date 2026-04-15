@@ -5,6 +5,7 @@ import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_theme.dart';
 import '../expenses/add_expense_screen.dart';
+import '../expenses/fuel_calculator_screen.dart';
 import 'km_history_screen.dart';
 import '../../models/service.dart';
 import '../../services/expense_service.dart';
@@ -33,6 +34,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   double _monthlyTotal = 0;
   double _fuelMonthlyTotal = 0;
+  double _fuelMonthlyLiters = 0;
+  Map<String, Map<String, double>> _fuelByType =
+      {}; // {fuelType: {total, liters}}
   int _monthlyDrivenKm = 0;
   int? _currentTotalKm;
   bool _hasCurrentMonthKm = false;
@@ -91,6 +95,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
       double total = 0;
       double fuel = 0;
+      double fuelLiters = 0;
+      Map<String, Map<String, double>> fuelByType = {};
 
       for (final dynamic entry in expensesData) {
         if (entry is! Map<String, dynamic>) continue;
@@ -100,11 +106,29 @@ class _HomeScreenState extends State<HomeScreen> {
 
         if (_isFuelEntry(entry)) {
           fuel += amount;
+          final liters = entry['liters'];
+          if (liters != null) {
+            fuelLiters += (liters is num) ? liters.toDouble() : 0;
+          }
+
+          // Agrupa por tipo de combustível
+          final fuelType = (entry['fuelType'] as String?) ?? 'Desconhecido';
+          final litersValue = (liters is num) ? liters.toDouble() : 0;
+
+          if (!fuelByType.containsKey(fuelType)) {
+            fuelByType[fuelType] = {'total': 0, 'liters': 0};
+          }
+          fuelByType[fuelType]!['total'] =
+              (fuelByType[fuelType]!['total'] ?? 0) + amount;
+          fuelByType[fuelType]!['liters'] =
+              (fuelByType[fuelType]!['liters'] ?? 0) + litersValue;
         }
       }
 
       monthlyTotal = total;
       fuelMonthlyTotal = fuel;
+      _fuelMonthlyLiters = fuelLiters;
+      _fuelByType = fuelByType;
     } catch (_) {
       error = 'Nao foi possivel atualizar os dados de gastos.';
     }
@@ -141,7 +165,7 @@ class _HomeScreenState extends State<HomeScreen> {
       hasCurrentMonthKm = summary.hasCurrentMonthEntry;
       availableVehicles = profiles;
       final model = profile?.model.trim() ?? '';
-        activeVehicleModel = model;
+      activeVehicleModel = model;
       hasVehicleProfile = profile != null &&
           model.isNotEmpty &&
           profile.plate.trim().isNotEmpty &&
@@ -432,6 +456,137 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Olá, $firstName';
   }
 
+  Widget _buildFuelCard({
+    required String? fuelType,
+    required double total,
+    required double liters,
+  }) {
+    final label = fuelType ?? 'Combustível';
+    return GestureDetector(
+      onTap: _goToExpenses,
+      child: AppCard(
+        padding: const EdgeInsets.all(16),
+        borderRadius: 20,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                      color: const Color(0x143B82F6),
+                      borderRadius: BorderRadius.circular(12)),
+                  child: const Icon(LucideIcons.droplet,
+                      size: 18, color: AppColors.accent),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary)),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                    _isLoadingMetrics
+                        ? '...'
+                        : _formatMoney(total, withSpace: true),
+                    style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.primary)),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _openFuelCalculator,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF3F4F7),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      LucideIcons.calculator,
+                      size: 18,
+                      color: AppColors.accent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (!_isLoadingMetrics && liters > 0) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: const Color(0xF5F5F7),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Litros',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.secondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '${liters.toStringAsFixed(2)} L',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text(
+                          'L / R\$',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.secondary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          total > 0
+                              ? '${(liters / total).toStringAsFixed(3)}'
+                              : '0',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
   Color _carHealthColor(int health) {
     if (!_hasVehicleProfile || health >= 95) {
       return AppColors.green;
@@ -451,6 +606,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _goToMaintenance() {
     context.go('/maintenance');
+  }
+
+  Future<void> _openFuelCalculator() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => const FuelCalculatorScreen(),
+      ),
+    );
   }
 
   Future<void> _openAddExpenseQuickAction() async {
@@ -546,6 +709,25 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: PremiumCarSyncHeader(
                         appName: 'CarSync',
                         greeting: _headerGreeting(),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => context.go('/alerts'),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.card,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: AppColors.separator,
+                            width: 0.8,
+                          ),
+                        ),
+                        child: const Icon(
+                          LucideIcons.bell,
+                          size: 20,
+                          color: AppColors.primary,
+                        ),
                       ),
                     ),
                     if (_availableVehicles.length > 1) ...[
@@ -649,50 +831,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: _goToExpenses,
-                  child: AppCard(
-                    padding: const EdgeInsets.all(16),
-                    borderRadius: 20,
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                              color: const Color(0x143B82F6),
-                              borderRadius: BorderRadius.circular(12)),
-                          child: const Icon(LucideIcons.droplet,
-                              size: 18, color: AppColors.accent),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text('Combustivel no mes',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.primary)),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                            _isLoadingMetrics
-                                ? '...'
-                                : _formatMoney(_fuelMonthlyTotal,
-                                    withSpace: true),
-                            style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary)),
-                      ],
-                    ),
-                  ),
-                ),
+                if (_fuelByType.isEmpty)
+                  _buildFuelCard(
+                      fuelType: null,
+                      total: _fuelMonthlyTotal,
+                      liters: _fuelMonthlyLiters)
+                else if (_fuelByType.length == 1)
+                  _buildFuelCard(
+                    fuelType: _fuelByType.keys.first,
+                    total: _fuelByType.values.first['total'] ?? 0,
+                    liters: _fuelByType.values.first['liters'] ?? 0,
+                  )
+                else
+                  ..._fuelByType.entries.map((entry) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _buildFuelCard(
+                        fuelType: entry.key,
+                        total: entry.value['total'] ?? 0,
+                        liters: entry.value['liters'] ?? 0,
+                      ),
+                    );
+                  }).toList(),
                 const SizedBox(height: 16),
                 LayoutBuilder(
                   builder: (context, constraints) {
-                    final compact = constraints.maxWidth < 360;
+                    final compact = MediaQuery.sizeOf(context).width < 360;
 
                     if (compact) {
                       return Column(

@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/login_screen.dart';
 import '../features/home/home_screen.dart';
 import '../features/expenses/expenses_screen.dart';
+import '../features/expenses/fuel_calculator_screen.dart';
 import '../features/maintenance/maintenance_screen.dart';
 import '../features/maintenance/schedule_service_screen.dart';
 import '../features/maintenance/service_detail_screen.dart';
@@ -66,6 +67,14 @@ class AppRouter {
           StatefulShellBranch(
             routes: [
               GoRoute(
+                path: '/calculator',
+                builder: (context, state) => const FuelCalculatorScreen(),
+              ),
+            ],
+          ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
                 path: '/maintenance',
                 builder: (context, state) => const MaintenanceScreen(),
                 routes: [
@@ -87,20 +96,16 @@ class AppRouter {
           StatefulShellBranch(
             routes: [
               GoRoute(
-                path: '/alerts',
-                builder: (context, state) => const AlertsScreen(),
-              ),
-            ],
-          ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
                 path: '/profile',
                 builder: (context, state) => const ProfileScreen(),
               ),
             ],
           ),
         ],
+      ),
+      GoRoute(
+        path: '/alerts',
+        builder: (context, state) => const AlertsScreen(),
       ),
     ],
   );

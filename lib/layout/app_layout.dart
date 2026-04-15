@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
 import '../core/app_colors.dart';
-import '../services/alerts_refresh_notifier.dart';
 import '../services/home_refresh_notifier.dart';
 
 class AppLayout extends StatelessWidget {
@@ -25,19 +24,21 @@ class AppLayout extends StatelessWidget {
         bottom: false,
         child: Center(
           child: Container(
-            constraints: isMobile ? const BoxConstraints.expand() : const BoxConstraints(maxWidth: 390),
-            decoration: isMobile 
-              ? null
-              : const BoxDecoration(
-                  color: AppColors.bg,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Color(0x1A000000),
-                      blurRadius: 20,
-                      offset: Offset(0, 4),
-                    ),
-                  ],
-                ),
+            constraints: isMobile
+                ? const BoxConstraints.expand()
+                : const BoxConstraints(maxWidth: 390),
+            decoration: isMobile
+                ? null
+                : const BoxDecoration(
+                    color: AppColors.bg,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Color(0x1A000000),
+                        blurRadius: 20,
+                        offset: Offset(0, 4),
+                      ),
+                    ],
+                  ),
             child: Column(
               children: [
                 // Main content area - takes remaining space
@@ -89,14 +90,16 @@ class AppLayout extends StatelessWidget {
                   ],
                 ),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                  padding:
+                      const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       _buildNavItem(context, 0, LucideIcons.house, 'Início'),
                       _buildNavItem(context, 1, LucideIcons.receipt, 'Gastos'),
-                      _buildNavItem(context, 2, LucideIcons.wrench, 'Serviço'),
-                      _buildNavItem(context, 3, LucideIcons.bell, 'Alertas'),
+                      _buildNavItem(
+                          context, 2, LucideIcons.calculator, 'Calculadora'),
+                      _buildNavItem(context, 3, LucideIcons.wrench, 'Serviço'),
                       _buildNavItem(context, 4, LucideIcons.user, 'Perfil'),
                     ],
                   ),
@@ -109,16 +112,14 @@ class AppLayout extends StatelessWidget {
     );
   }
 
-  Widget _buildNavItem(BuildContext context, int index, IconData icon, String label) {
+  Widget _buildNavItem(
+      BuildContext context, int index, IconData icon, String label) {
     final bool isActive = navigationShell.currentIndex == index;
 
     return GestureDetector(
       onTap: () {
         if (index == 0) {
           HomeRefreshNotifier.bump();
-        }
-        if (index == 3) {
-          AlertsRefreshNotifier.bump();
         }
         navigationShell.goBranch(index);
       },
@@ -143,9 +144,7 @@ class AppLayout extends StatelessWidget {
             Icon(
               icon,
               size: isActive ? 20 : 18,
-              color: isActive
-                  ? AppColors.primary
-                  : const Color(0xFFA0A0A0),
+              color: isActive ? AppColors.primary : const Color(0xFFA0A0A0),
             ),
             const SizedBox(height: 2),
             Text(
@@ -153,9 +152,7 @@ class AppLayout extends StatelessWidget {
               style: TextStyle(
                 fontSize: 9,
                 fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                color: isActive
-                    ? AppColors.primary
-                    : const Color(0xFF888888),
+                color: isActive ? AppColors.primary : const Color(0xFF888888),
                 letterSpacing: 0.1,
               ),
             ),

@@ -3,8 +3,7 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-import 'local_auth_service.dart';
-
+import 'local_auth_service.dart';import 'api_config.dart';
 class BackendVehicleData {
   final String id;
   final String model;
@@ -35,7 +34,7 @@ class BackendVehicleData {
 }
 
 class VehicleApi {
-  static const String baseUrl = 'http://localhost:3000/api';
+  static String get baseUrl => ApiConfig.baseUrl;
   static const Duration timeout = Duration(seconds: 15);
 
   static Future<Map<String, String>> _headers({bool jsonBody = false}) async {

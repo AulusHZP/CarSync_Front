@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons_flutter/lucide_icons.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:intl/intl.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import '../../core/app_colors.dart';
 import '../../core/app_theme.dart';
 import '../../widgets/app_card.dart';
@@ -17,6 +22,9 @@ class ExpenseItem {
   final IconData icon;
   final Color color;
   final Color iconBg;
+  final String? fuelType;
+  final double? liters;
+  final double? pricePerLiter;
 
   const ExpenseItem({
     required this.id,
@@ -26,6 +34,9 @@ class ExpenseItem {
     required this.icon,
     required this.color,
     required this.iconBg,
+    this.fuelType,
+    this.liters,
+    this.pricePerLiter,
   });
 }
 
@@ -86,6 +97,9 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             icon: style.$1,
             color: style.$2,
             iconBg: style.$3,
+            fuelType: item['fuelType'] as String?,
+            liters: (item['liters'] as num?)?.toDouble(),
+            pricePerLiter: (item['pricePerLiter'] as num?)?.toDouble(),
           ),
         );
       }
@@ -257,6 +271,161 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
     });
   }
 
+  Future<void> _exportToPDF() async {
+    try {
+      await initializeDateFormatting('pt_BR');
+
+      final total = _expenses.fold(0.0, (sum, e) => sum + e.amount);
+      final monthFormat = DateFormat('MMMM/yyyy', 'pt_BR');
+      final dateFormat = DateFormat('dd/MM/yyyy', 'pt_BR');
+      final regularFont = await PdfGoogleFonts.notoSansRegular();
+      final boldFont = await PdfGoogleFonts.notoSansBold();
+
+      final pdf = pw.Document();
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(20),
+          theme: pw.ThemeData.withFont(
+            base: regularFont,
+            bold: boldFont,
+          ),
+          build: (pw.Context context) {
+            return [
+              pw.Header(
+                level: 0,
+                child: pw.Text(
+                  'Relatório de Gastos',
+                  style: pw.TextStyle(
+                    fontSize: 24,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              pw.Text(
+                'Período: ${monthFormat.format(_referenceMonth)}',
+                style: const pw.TextStyle(
+                  fontSize: 12,
+                  color: PdfColors.grey,
+                ),
+              ),
+              pw.SizedBox(height: 20),
+              pw.Container(
+                padding: const pw.EdgeInsets.all(15),
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey),
+                  borderRadius:
+                      const pw.BorderRadius.all(pw.Radius.circular(5)),
+                ),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Text(
+                      'Total do Mês',
+                      style: pw.TextStyle(
+                        fontSize: 12,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                    pw.SizedBox(height: 5),
+                    pw.Text(
+                      'R\$ ${total.toStringAsFixed(2)}',
+                      style: pw.TextStyle(
+                        fontSize: 20,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              pw.SizedBox(height: 20),
+              pw.Text(
+                'Detalhamento',
+                style: pw.TextStyle(
+                  fontSize: 14,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.SizedBox(height: 10),
+              if (_expenses.isEmpty)
+                pw.Text(
+                  'Nenhum gasto cadastrado neste mês',
+                )
+              else
+                pw.Table(
+                  border: pw.TableBorder.all(color: PdfColors.grey),
+                  children: [
+                    pw.TableRow(
+                      decoration:
+                          const pw.BoxDecoration(color: PdfColors.grey200),
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(8),
+                          child: pw.Text(
+                            'Data',
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(8),
+                          child: pw.Text(
+                            'Categoria',
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(8),
+                          child: pw.Text(
+                            'Valor',
+                            style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                    ..._expenses.map(
+                      (e) => pw.TableRow(
+                        children: [
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(8),
+                            child: pw.Text(
+                              dateFormat.format(e.createdAt),
+                            ),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(8),
+                            child: pw.Text(
+                              e.category,
+                            ),
+                          ),
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.all(8),
+                            child: pw.Text(
+                              'R\$ ${e.amount.toStringAsFixed(2)}',
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+            ];
+          },
+        ),
+      );
+
+      await Printing.layoutPdf(onLayout: (_) => pdf.save());
+    } catch (e) {
+      if (mounted) {
+        AppFeedback.show(
+          context,
+          message: 'Erro ao exportar PDF: $e',
+          tone: AppFeedbackTone.error,
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
@@ -387,14 +556,29 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header
-              Column(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(_monthLabel(_referenceMonth),
-                      style: Theme.of(context).textTheme.labelLarge),
-                  const SizedBox(height: 4),
-                  Text('Gastos',
-                      style: Theme.of(context).textTheme.displayLarge),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(_monthLabel(_referenceMonth),
+                          style: Theme.of(context).textTheme.labelLarge),
+                      const SizedBox(height: 4),
+                      Text('Gastos',
+                          style: Theme.of(context).textTheme.displayLarge),
+                    ],
+                  ),
+                  IconButton.filled(
+                    onPressed: _exportToPDF,
+                    icon: const Icon(LucideIcons.fileText, size: 20),
+                    tooltip: 'Exportar PDF',
+                    style: IconButton.styleFrom(
+                      backgroundColor: AppColors.card,
+                      foregroundColor: AppColors.primary,
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
@@ -566,6 +750,97 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                               ),
                             ],
                           ),
+                          if (e.category == 'Combustível' &&
+                              (e.fuelType != null || e.liters != null)) ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: const Color(0xF5F5F7),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (e.fuelType != null)
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text(
+                                          'Tipo:',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.secondary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          e.fuelType!,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  if (e.liters != null) ...[
+                                    if (e.fuelType != null)
+                                      const SizedBox(height: 6),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text(
+                                          'Litros:',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.secondary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          '${e.liters!.toStringAsFixed(2)} L',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                  if (e.pricePerLiter != null) ...[
+                                    if (e.fuelType != null || e.liters != null)
+                                      const SizedBox(height: 6),
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        const Text(
+                                          'Preço/L:',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.secondary,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                        Text(
+                                          'R\$${e.pricePerLiter!.toStringAsFixed(2)}',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: AppColors.primary,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 14),
                           ProgressBar(
                             value: total > 0 ? e.amount / total : 0,

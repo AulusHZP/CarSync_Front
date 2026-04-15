@@ -2,9 +2,10 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../models/service.dart';
 import 'local_auth_service.dart';
+import 'api_config.dart';
 
 class ServiceApi {
-  static const String baseUrl = 'http://localhost:3000/api';
+  static String get baseUrl => ApiConfig.baseUrl;
   static const Duration timeout = Duration(seconds: 30);
 
   static Future<Map<String, String>> _headers({bool json = false}) async {

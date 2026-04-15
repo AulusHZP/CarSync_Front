@@ -8,6 +8,7 @@ import '../../models/service.dart';
 import '../../services/alerts_refresh_notifier.dart';
 import '../../services/expense_service.dart';
 import '../../services/service_api.dart';
+import '../../services/vehicle_profile_service.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/app_feedback.dart';
 import '../../widgets/status_indicator.dart';
@@ -58,6 +59,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
     final dynamicAlerts = <_AlertItem>[];
     var servicesLoaded = false;
     var expensesLoaded = false;
+    List<Service> loadedServices = const [];
 
     Object? servicesError;
     Object? expensesError;
@@ -65,7 +67,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
     try {
       final serviceResponse = await ServiceApi.getAllServices(limit: 50);
       servicesLoaded = true;
-      dynamicAlerts.addAll(_buildServiceAlerts(serviceResponse.data, readIds));
+      loadedServices = serviceResponse.data;
+      dynamicAlerts.addAll(_buildServiceAlerts(loadedServices, readIds));
     } catch (e) {
       servicesError = e;
     }
@@ -77,6 +80,17 @@ class _AlertsScreenState extends State<AlertsScreen> {
       dynamicAlerts.addAll(_buildFuelAlerts(expenses, readIds));
     } catch (e) {
       expensesError = e;
+    }
+
+    if (servicesLoaded) {
+      try {
+        final oilAlert = await _buildMileageOilAlert(loadedServices, readIds);
+        if (oilAlert != null) {
+          dynamicAlerts.add(oilAlert);
+        }
+      } catch (_) {
+        // Keep existing alerts even if mileage recommendation cannot be built.
+      }
     }
 
     if (dynamicAlerts.isNotEmpty) {
@@ -134,9 +148,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
     for (final service in services) {
       final dateLocal = service.date.toLocal();
       final updatedLocal = service.updatedAt.toLocal();
-      final daysDiff = dateLocal
-          .difference(DateTime(now.year, now.month, now.day))
-          .inDays;
+      final daysDiff =
+          dateLocal.difference(DateTime(now.year, now.month, now.day)).inDays;
 
       final id =
           'service-${service.id}-${service.status.name}-${service.updatedAt.toIso8601String()}';
@@ -225,15 +238,17 @@ class _AlertsScreenState extends State<AlertsScreen> {
       }
 
       final createdAtRaw = raw['createdAt']?.toString();
-      final createdAt =
-          createdAtRaw != null ? DateTime.tryParse(createdAtRaw)?.toLocal() : null;
+      final createdAt = createdAtRaw != null
+          ? DateTime.tryParse(createdAtRaw)?.toLocal()
+          : null;
       if (createdAt == null) {
         continue;
       }
 
       final amount = ((raw['amount'] ?? 0) as num).toDouble();
 
-      if (!createdAt.isBefore(monthStart) && createdAt.isBefore(nextMonthStart)) {
+      if (!createdAt.isBefore(monthStart) &&
+          createdAt.isBefore(nextMonthStart)) {
         currentFuelTotal += amount;
       } else if (!createdAt.isBefore(prevMonthStart) &&
           createdAt.isBefore(monthStart)) {
@@ -241,12 +256,14 @@ class _AlertsScreenState extends State<AlertsScreen> {
       }
     }
 
-    if (previousFuelTotal <= 0 || currentFuelTotal <= previousFuelTotal * 1.15) {
+    if (previousFuelTotal <= 0 ||
+        currentFuelTotal <= previousFuelTotal * 1.15) {
       return const [];
     }
 
     final increasePercent =
-        ((currentFuelTotal - previousFuelTotal) / previousFuelTotal * 100).round();
+        ((currentFuelTotal - previousFuelTotal) / previousFuelTotal * 100)
+            .round();
     final id = 'fuel-trend-${now.year}-${now.month}';
 
     return [
@@ -262,6 +279,129 @@ class _AlertsScreenState extends State<AlertsScreen> {
         unread: !readIds.contains(id),
       ),
     ];
+  }
+
+  Future<_AlertItem?> _buildMileageOilAlert(
+    List<Service> services,
+    Set<String> readIds,
+  ) async {
+    final summary = await VehicleProfileService.getMileageSummary();
+    final currentKm = summary.currentTotalKm;
+    if (currentKm == null || currentKm < 9500) {
+      return null;
+    }
+
+    if (_hasOilServicePlanned(services) ||
+        _hasRecentCompletedOilService(services)) {
+      return null;
+    }
+
+    final now = DateTime.now();
+    final history = await VehicleProfileService.listKmHistory(limit: 2);
+
+    int? crossedMilestone;
+    if (history.length >= 2) {
+      final latestKm = history.first.totalKm;
+      final previousKm = history[1].totalKm;
+      crossedMilestone = _findLastCrossedMilestone(previousKm, latestKm);
+    }
+
+    if (crossedMilestone == null && currentKm % 10000 == 0) {
+      crossedMilestone = currentKm;
+    }
+
+    if (crossedMilestone != null) {
+      final id = 'mileage-oil-$crossedMilestone';
+      return _AlertItem(
+        id: id,
+        icon: LucideIcons.droplet,
+        iconColor: AppColors.amber,
+        iconBg: const Color(0x14F59E0B),
+        title: 'Troca de óleo recomendada',
+        message:
+            'Seu carro atingiu ${VehicleProfileService.formatKm(crossedMilestone)}. Recomendamos agendar a troca de óleo.',
+        time: 'agora',
+        timestamp: now,
+        unread: !readIds.contains(id),
+      );
+    }
+
+    final nextMilestone = ((currentKm ~/ 10000) + 1) * 10000;
+    final remainingKm = nextMilestone - currentKm;
+
+    if (remainingKm <= 500) {
+      final id = 'mileage-oil-near-$nextMilestone-${now.year}-${now.month}';
+      return _AlertItem(
+        id: id,
+        icon: LucideIcons.circleAlert,
+        iconColor: AppColors.amber,
+        iconBg: const Color(0x14F59E0B),
+        title: 'Revisão de 10.000 km próxima',
+        message:
+            'Faltam ${VehicleProfileService.formatKm(remainingKm)} para ${VehicleProfileService.formatKm(nextMilestone)}. Agende troca de óleo.',
+        time: 'agora',
+        timestamp: now,
+        unread: !readIds.contains(id),
+      );
+    }
+
+    return null;
+  }
+
+  bool _hasOilServicePlanned(List<Service> services) {
+    return services.any(
+      (service) =>
+          (service.status == ServiceStatus.scheduled ||
+              service.status == ServiceStatus.upcoming) &&
+          _isOilServiceType(service.serviceType),
+    );
+  }
+
+  bool _hasRecentCompletedOilService(List<Service> services) {
+    final now = DateTime.now();
+    return services.any((service) {
+      if (service.status != ServiceStatus.completed ||
+          !_isOilServiceType(service.serviceType)) {
+        return false;
+      }
+
+      final daysSinceService = now.difference(service.date.toLocal()).inDays;
+      return daysSinceService >= 0 && daysSinceService <= 45;
+    });
+  }
+
+  bool _isOilServiceType(String serviceType) {
+    final normalized = serviceType.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+
+    return normalized.contains('troca de óleo') ||
+        normalized.contains('troca de oleo') ||
+        (normalized.contains('troca') &&
+            (normalized.contains('óleo') || normalized.contains('oleo'))) ||
+        normalized.contains('oil change');
+  }
+
+  int? _findLastCrossedMilestone(int previousKm, int currentKm) {
+    final safePreviousKm = previousKm < 0 ? 0 : previousKm;
+    final safeCurrentKm = currentKm < 0 ? 0 : currentKm;
+
+    if (safeCurrentKm < 10000 || safeCurrentKm <= safePreviousKm) {
+      return null;
+    }
+
+    final firstMilestone = ((safePreviousKm ~/ 10000) + 1) * 10000;
+    if (firstMilestone > safeCurrentKm) {
+      return null;
+    }
+
+    var lastMilestone = firstMilestone;
+    for (var km = firstMilestone; km <= safeCurrentKm; km += 10000) {
+      lastMilestone = km;
+    }
+
+    return lastMilestone;
   }
 
   Future<void> _markAlertAsRead(String id) async {
@@ -501,7 +641,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
 
               // Summary Stats Card
               AppCard(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
                 child: Row(
                   children: [
                     Expanded(
@@ -522,9 +663,7 @@ class _AlertsScreenState extends State<AlertsScreen> {
                       ),
                     ),
                     Container(
-                        width: 0.5,
-                        height: 40,
-                        color: const Color(0x1A3C3C43)),
+                        width: 0.5, height: 40, color: const Color(0x1A3C3C43)),
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.only(left: 20),
